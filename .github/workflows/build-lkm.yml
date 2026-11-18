@@ -34,7 +34,7 @@ concurrency:
 env:
   CLANG_DIR: clang-r596125
   NOMOUNT_REPO: maxsteeel/nomount
-  NOMOUNT_REF: bf1847f98fed382369c43bfd652cd93774b9b8e3
+  NOMOUNT_REF: ab93ee32a589ccb021257b3c1f280e058520d844
   BUILD_TYPE: kernelsu-lkm
 
 jobs:
