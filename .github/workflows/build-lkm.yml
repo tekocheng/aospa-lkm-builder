@@ -34,7 +34,6 @@ concurrency:
 env:
   CLANG_DIR: clang-r596125
   NOMOUNT_REPO: maxsteeel/nomount
-  NOMOUNT_REF: ab93ee32a589ccb021257b3c1f280e058520d844
   BUILD_TYPE: kernelsu-lkm
 
 jobs:
@@ -63,27 +62,22 @@ jobs:
             KernelSU-Official)
               echo "repo=tiann/KernelSU" >> "$GITHUB_OUTPUT"
               echo "branch=main" >> "$GITHUB_OUTPUT"
-              echo "ref=dbb73665d103da40c7ecbd21ba3b5ac76eb95784" >> "$GITHUB_OUTPUT"
               ;;
             KOWX712)
               echo "repo=KOWX712/KernelSU" >> "$GITHUB_OUTPUT"
               echo "branch=master" >> "$GITHUB_OUTPUT"
-              echo "ref=21787ce135c988bae4244a44cfcb5a542aa3347f" >> "$GITHUB_OUTPUT"
               ;;
             BakaSU)
               echo "repo=Baka-SU/BakaSU" >> "$GITHUB_OUTPUT"
               echo "branch=main" >> "$GITHUB_OUTPUT"
-              echo "ref=548d1dda060ca198823d8808804d01f5209ef4a9" >> "$GITHUB_OUTPUT"
               ;;
             SukiSU-Ultra)
               echo "repo=SukiSU-Ultra/SukiSU-Ultra" >> "$GITHUB_OUTPUT"
               echo "branch=main" >> "$GITHUB_OUTPUT"
-              echo "ref=dae36db016079546b9fc028636a3326d09979777" >> "$GITHUB_OUTPUT"
               ;;
             KernelSU-Next)
               echo "repo=KernelSU-Next/KernelSU-Next" >> "$GITHUB_OUTPUT"
               echo "branch=dev" >> "$GITHUB_OUTPUT"
-              echo "ref=3987e4d5de21348050b923e7d7a6540ddc2d5c8c" >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "Unsupported KernelSU variant: $KSU_VARIANT" >&2
@@ -95,7 +89,7 @@ jobs:
         shell: bash
         env:
           KSU_REPO: ${{ steps.ksu.outputs.repo }}
-          KSU_REF: ${{ steps.ksu.outputs.ref }}
+          KSU_BRANCH: ${{ steps.ksu.outputs.branch }}
         run: |
           set -euo pipefail
           cd kernel_platform/xiaomi/sm8450
@@ -107,27 +101,39 @@ jobs:
             rm -rf KernelSU
           fi
 
+          # Always build the latest branch head (no commit/tag pin).
           curl --fail --location --retry 5 --retry-all-errors \
-            "https://raw.githubusercontent.com/${KSU_REPO}/${KSU_REF}/kernel/setup.sh" \
+            "https://raw.githubusercontent.com/${KSU_REPO}/${KSU_BRANCH}/kernel/setup.sh" \
             -o /tmp/ksu-setup.sh
-          bash /tmp/ksu-setup.sh "${KSU_REF}"
-          test -d KernelSU/kernel -o -d KernelSU-Next/kernel
-          echo "Selected ${KSU_REPO} @ ${KSU_REF}"
+          bash /tmp/ksu-setup.sh "${KSU_BRANCH}"
 
-      - name: Include pinned NoMount
+          KSU_DIR=""
+          for d in KernelSU KernelSU-Next; do
+            if [ -d "$d/kernel" ]; then KSU_DIR="$d"; break; fi
+          done
+          test -n "$KSU_DIR"
+
+          # Record the commit that was resolved, for build-info.txt.
+          KSU_REF="$(git -C "$KSU_DIR" rev-parse HEAD)"
+          echo "KSU_REF=${KSU_REF}" >> "$GITHUB_ENV"
+          echo "Selected ${KSU_REPO} @ ${KSU_BRANCH} (${KSU_REF})"
+
+      - name: Include latest NoMount
         shell: bash
         run: |
           set -euo pipefail
           cd kernel_platform/xiaomi/sm8450
           curl --fail --location --retry 5 --retry-all-errors \
-            "https://raw.githubusercontent.com/${NOMOUNT_REPO}/${NOMOUNT_REF}/kernel/setup.sh" \
-            | bash -s "${NOMOUNT_REF}"
+            "https://raw.githubusercontent.com/${NOMOUNT_REPO}/HEAD/kernel/setup.sh" \
+            | bash -s
+          NOMOUNT_REF="$(git -C NoMount rev-parse HEAD)"
+          echo "NOMOUNT_REF=${NOMOUNT_REF}" >> "$GITHUB_ENV"
+          echo "Selected ${NOMOUNT_REPO} @ ${NOMOUNT_REF}"
 
       - name: Build KernelSU and NoMount LKM
         shell: bash
         env:
           KSU_REPO: ${{ steps.ksu.outputs.repo }}
-          KSU_REF: ${{ steps.ksu.outputs.ref }}
           KSU_VARIANT: ${{ inputs.ksu_variant }}
         run: |
           set -euo pipefail
@@ -144,7 +150,6 @@ jobs:
         shell: bash
         env:
           KSU_REPO: ${{ steps.ksu.outputs.repo }}
-          KSU_REF: ${{ steps.ksu.outputs.ref }}
           KSU_VARIANT: ${{ inputs.ksu_variant }}
           SOURCE_BRANCH: ${{ inputs.source_branch }}
         run: |
