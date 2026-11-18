@@ -18,13 +18,13 @@ Run **Actions → KernelSU LKM → Run workflow**, select the AOSPA source branc
 | `SukiSU-Ultra` | [SukiSU-Ultra/SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra) | `main` | `kernelsu.ko` |
 | `KernelSU-Next` | [KernelSU-Next/KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next) | `dev` | `kernelsu.ko` |
 
-Each choice is mapped to a reviewed commit SHA in the workflow. The setup script checks out that exact revision instead of silently building whatever happens to be at the branch head. To update a variant, review the upstream changes and update its SHA in the **Resolve KernelSU variant** step.
+Each choice is mapped to an upstream repository and branch in the workflow. No commit or tag is pinned: every run builds the latest head of that branch, and the resolved commit is recorded in `build-info.txt`.
 
 > These are alternative KernelSU implementations. Build and use only one variant at a time; do not mix their kernel modules or manager applications.
 
 ## NoMount companion LKM
 
-NoMount is built as a **companion LKM** in the same run as the selected KernelSU variant. It is not another KernelSU choice and does not replace KernelSU. The workflow pins [maxsteeel/nomount](https://github.com/maxsteeel/nomount) to commit `bf1847f98fed382369c43bfd652cd93774b9b8e3`, applies its kernel setup, enables `CONFIG_NOMOUNT=m`, and produces `nomount.ko` alongside `kernelsu.ko`.
+NoMount is built as a **companion LKM** in the same run as the selected KernelSU variant. It is not another KernelSU choice and does not replace KernelSU. The workflow uses the latest [maxsteeel/nomount](https://github.com/maxsteeel/nomount) (no pinned ref), applies its kernel setup, enables `CONFIG_NOMOUNT=m`, and produces `nomount.ko` alongside `kernelsu.ko`.
 
 Both modules are required outputs. The job fails when either module is absent, empty, or its expected kernel configuration is not enabled.
 
@@ -42,8 +42,8 @@ The artifact name includes the selected variant, for example `kernelsu-lkm-KOWX7
 Each artifact contains:
 
 - `kernelsu.ko` — the selected KernelSU LKM.
-- `nomount.ko` — the pinned NoMount companion LKM.
-- `build-info.txt` — build type, selected variant, exact KernelSU commit, selected AOSPA branch, builder commit, toolchain, and source revisions.
+- `nomount.ko` — the NoMount companion LKM (latest upstream).
+- `build-info.txt` — build type, selected variant, resolved KernelSU and NoMount commits, selected AOSPA branch, builder commit, toolchain, and source revisions.
 - `resolved-manifest.xml` — exact Repo project revisions synchronized for that run.
 
 ## Build environment
@@ -93,14 +93,9 @@ The workflow validates that both `out/kernelsu.ko` and `out/nomount.ko` exist an
 
 ## Updating variants
 
-The workflow deliberately pins each upstream revision for repeatability. To update a variant:
+Sources are not pinned, so there is nothing to bump: each run builds the latest upstream branch head. To add a variant, add a case in **Resolve KernelSU variant** with its repository and branch, and make sure its `kernel/setup.sh` accepts a branch name.
 
-1. Review the upstream repository and select a known-good commit.
-2. Confirm its `kernel/setup.sh` supports selecting a commit SHA.
-3. Update the corresponding repository, branch, and SHA in **Resolve KernelSU variant**.
-4. Run the LKM workflow and inspect the complete build log and artifact metadata.
-
-Do not automatically follow upstream branches in production builds: a branch update can change kernel integration and break compatibility without any changes in this builder.
+If a build breaks after an upstream change, compare the commits recorded in `build-info.txt` between a good and a bad run.
 
 ## Cleanup workflow
 
